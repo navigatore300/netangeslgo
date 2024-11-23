@@ -15,7 +15,7 @@ Add this repository as go dependency.
 
 ``` go
 import (
-	"github.com/runnerm/netangelsgo"
+	"github.com/navigatore300/netangelsgo"
 )
 ```
 Create a new client with your API key.
