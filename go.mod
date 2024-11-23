@@ -1,22 +1,14 @@
-module github.com/navogatore300/netangelsgo
+module github.com/navigatore300/netangeslgo
+
+go 1.22.0
 
 require (
-	github.com/go-resty/resty/v2 v2.15.3
-	// github.com/google/go-cmp v0.6.0
-	// github.com/jarcoal/httpmock v1.3.1
-	// golang.org/x/net v0.30.0
-	// golang.org/x/oauth2 v0.23.0
-	// golang.org/x/text v0.20.0
-	// gopkg.in/ini.v1 v1.66.6
+	github.com/bobesa/go-domain-util v0.0.0-20190911083921-4033b5f7dd89
+	github.com/sirupsen/logrus v1.9.3
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/stretchr/testify v1.9.0
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	golang.org/x/net v0.0.0-20210610124326-52da8fb2a613 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/text v0.3.8 // indirect
 )
-
-go 1.22
-
-retract v1.0.0 // Accidental branch push
