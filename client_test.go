@@ -32,7 +32,7 @@ func TestAll(t *testing.T) {
 }
 
 func testAdd(t *testing.T, data testData) {
-	id, err := fixture.AddRecord(data.domain, data.data, "TXT")
+	id, err := fixture.AddRecord(data.domain, data.data, "TXT", 300)
 	if err != nil {
 		t.Fail()
 	}
@@ -54,45 +54,22 @@ func testAdd(t *testing.T, data testData) {
 // }
 
 func testRemove(t *testing.T, data testData, id int) {
-	res2, _, _ := fixture.GetRecord(data.domain, data.data2, "TXT")
+	res2, _ := fixture.GetRecordID(data.domain, data.data2, "TXT")
 
 	if res2 != id {
 		t.Fail()
 	}
 
-	res := fixture.RemoveRecord(id, data.domain)
-	if res != true {
+	res := fixture.RemoveRecord(id)
+	if res != nil {
 		t.Fail()
 	}
 
+}
+func testGet(t *testing.T, data testData) int {
+	id, _ := fixture.GetRecordID(data.domain, "", "TXT")
+	if id == 0 {
+		t.Fail()
 	}
-	func testGet(t *testing.T, data testData) int {
-		id, recData, _ := fixture.GetRecord(data.domain, "", "TXT")
-		if id == 0 {
-			t.Fail()
-		}
-		if recData == "" {
-			t.Fail()
-		}
-		return id
-	}
-
-	// func testddns(t *testing.T, data testData) {
-	// 	res, err := fixture.UpdateDDNS(data.domain, data.bogusIP)
-	// 	if err != nil {
-	// 		t.Fail()
-	// 	}
-	// 	if res != true {
-	// 		t.Fail()
-	// 	}
-	// }
-
-	//	func testddnsWithoutIp(t *testing.T, data testData) {
-	//		res, err := fixture.UpdateDDNS(data.domain, "")
-	//		if err != nil {
-	//			t.Fail()
-	//		}
-	//		if res != true {
-	//			t.Fail()
-	//		}
+	return id
 }

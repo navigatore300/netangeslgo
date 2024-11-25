@@ -39,19 +39,25 @@ type CreateDnsResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+type Zone_entities struct {
+	ID   int    `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
 // Zone представляет отдельную зону
 type Zone struct {
-	Comment         string `json:"comment"`
-	CreatedAt       string `json:"created_at"`
-	Editable        bool   `json:"editable"`
-	ID              int    `json:"id"`
-	IsInTransfer    bool   `json:"is_in_transfer"`
-	IsTechnicalZone bool   `json:"is_technical_zone"`
-	Name            string `json:"name"`
-	RecordsCount    int    `json:"records_count"`
-	SOAEmail        string `json:"soa_email"`
-	TTL             int    `json:"ttl"`
-	UpdatedAt       string `json:"updated_at"`
+	Comment         string          `json:"comment,omitempty"`
+	CreatedAt       string          `json:"created_at,omitempty"`
+	Editable        bool            `json:"editable,omitempty"`
+	ID              int             `json:"id,omitempty"`
+	IsInTransfer    bool            `json:"is_in_transfer,omitempty"`
+	IsTechnicalZone bool            `json:"is_technical_zone,omitempty"`
+	Name            string          `json:"name,omitempty"`
+	RecordsCount    int             `json:"records_count,omitempty"`
+	SecondaryDns    []Zone_entities `json:"secondary_dns,omitempty"`
+	SOAEmail        string          `json:"soa_email,omitempty"`
+	TTL             int             `json:"ttl,omitempty"`
+	UpdatedAt       string          `json:"updated_at,omitempty"`
 }
 
 // SecondaryDNS представляет дополнительный DNS
@@ -80,17 +86,6 @@ func validateRecordType(recordType RecordType) bool {
 	}
 	return false
 }
-
-// func CreateNetangelsClient(accountName string, apiKey string) NetangelsClient {
-// 	return NetangelsClient{
-// 		Credentials{
-// 			AccountName: accountName,
-// 			ApiKey:      apiKey,
-// 		},
-// 		ApiToken: "",
-// 		log.New(),
-// 	}
-// }
 
 func CreateNetangelsClient(accountName string, apiKey string) NetangelsClient {
 	return NetangelsClient{
@@ -148,6 +143,24 @@ type RecordResponse struct {
 	Message string `json:"message"`
 }
 
+type GetRecordDetails struct {
+	Value string `json:"value,omitempty"`
+}
+
+type GetRecord struct {
+	CreatedAt string             `json:"created_at,omitempty"`
+	Details   []GetRecordDetails `json:"details,omitempty"`
+	ID        int                `json:"id,omitempty"`
+	TTL       int                `json:"ttl,omitempty"`
+	Name      string             `json:"name,omitempty"`
+	Type      RecordType         `json:"type,omitempty"`
+	UpdatedAt string             `json:"updated_at,omitempty"`
+}
+type GetRecordsList struct {
+	Count    int         `json:"count"`
+	Entities []GetRecord `json:"getrecords"`
+}
+
 // type RecordResponse struct {
 // 	ID        int    `json:"id"`
 // 	Name      string `json:"name"`
@@ -203,6 +216,59 @@ func (c *NetangelsClient) GetToken() error {
 
 	c.ApiToken = tokenResponse.Token // Сохраняем токен в ApiToken
 	return nil
+}
+
+// Получение списка зон
+func GetZoneID(zone_name string, c *NetangelsClient) (int, error) {
+	// Создание нового HTTP-запроса
+
+	req, err := http.NewRequest("GET", apiUrl+"/dns/zones/", nil)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка создания запроса: %v", err)
+	}
+
+	// Установка заголовка авторизации
+	req.Header.Set("Authorization", "Bearer "+c.ApiToken)
+
+	// Выполнение запроса
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Чтение ответа
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка чтения ответа: %v", err)
+	}
+
+	// Проверка статуса ответа
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("ошибка: статус %d, ответ: %s", resp.StatusCode, body)
+	}
+
+	// Декодирование JSON-ответа в структуру Zones
+	var zones Zones
+	if err := json.Unmarshal(body, &zones); err != nil {
+		return 0, fmt.Errorf("ошибка декодирования JSON: %v", err)
+	}
+
+	// Ищем ID зоны с именем "k8s-services.ru"
+	var zoneID int
+	for _, zone := range zones.Entities {
+		if zone.Name == zone_name {
+			zoneID = zone.ID
+			break // Выходим из цикла, если нашли нужную зону
+		}
+	}
+
+	if zoneID != 0 {
+		return zoneID, nil
+	} else {
+		return 0, fmt.Errorf("запись зоны %s отсутствует", zone_name)
+	}
 }
 
 // AddRecord Add record to netangels
@@ -297,63 +363,81 @@ func (c *NetangelsClient) RemoveRecord(ID int) error {
 	}
 }
 
-// // GetRecord Fetch record by FQDNName, RecordData and RecordType,TTL and priority are ignored, returns id of first record found.
-// func (c *NetangelsClient) GetRecord(FQDNName string, RecordData string, recordType RecordType) (int, string, error) {
-// 	fqdnName := cutTrailingDotIfExist(FQDNName)
-// 	responseData, err2, failed := getRecords(fqdnName, c)
-// 	if failed {
-// 		return 0, "", err2
-// 	}
-// 	var records RecordResponse
-// 	err := json.Unmarshal(responseData, &records)
+// GetRecord Fetch record by FQDNName, RecordData and RecordType,TTL and priority are ignored, returns id of first record found.
+func (c *NetangelsClient) GetRecordID(FQDNName string, RecordData string, recordType RecordType) (int, error) {
+	fqdnName := cutTrailingDotIfExist(FQDNName)
+	responseData, err := getRecords(fqdnName, c)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения списка записей домена: %v", err)
+	}
 
-// 	if err == nil {
-// 		for i := 0; i < len(records.Records); i++ {
-// 			if records.Records[i].Value == RecordData && records.Records[i].Type == string(recordType) && records.Records[i].Name == domainutil.Subdomain(fqdnName) {
-// 				return records.Records[i].ID, records.Records[i].Value, nil
-// 			}
-// 		}
-// 		if RecordData == "" {
-// 			for i := 0; i < len(records.Records); i++ {
-// 				if records.Records[i].Type == string(recordType) && records.Records[i].Name == domainutil.Subdomain(fqdnName) {
-// 					return records.Records[i].ID, records.Records[i].Value, nil
-// 				}
-// 			}
-// 		}
-// 		log.Errorln("Record not found")
-// 		return 0, "", errors.New("record not found")
-// 	} else {
-// 		log.Errorln("Failed to unmarshal body with error: ", err)
-// 		return 0, "", err
-// 	}
-// }
+	// Ищем запись в списке записей полученых из DNS"
+	var record_id int
+	for _, item := range responseData.Entities {
+		if item.Type == recordType {
+			if item.Name == RecordData {
+				record_id = item.ID
+				break // Выходим из цикла, если нашли нужную запись
+			}
+		}
+	}
 
-// // GetRecords Fetch records by FQDNName returns id
-// func (c *NetangelsClient) GetRecords(FQDNName string) (string, error) {
-// 	fqdnName := cutTrailingDotIfExist(FQDNName)
-// 	responseData, err2, failed := getRecords(fqdnName, c)
-// 	if failed {
-// 		return "", err2
-// 	}
-// 	return string(responseData), nil
-// }
+	return record_id, nil
 
-// func getRecords(fqdnName string, c *NetangelsClient) ([]byte, error, bool) {
-// 	req, err := http.NewRequest("GET", apiUrl+"/my/products/"+domainutil.Domain(fqdnName)+"/dns/records", nil)
-// 	req.SetBasicAuth(c.Credentials.AccountName, c.Credentials.ApiKey)
-// 	client := &http.Client{}
-// 	response, err := client.Do(req)
-// 	if err != nil || response.StatusCode != 200 {
-// 		log.Errorln("Failed request, response code: ", response.StatusCode)
-// 		return nil, err, true
-// 	}
-// 	responseData, err := io.ReadAll(response.Body)
-// 	if err != nil {
-// 		log.Errorln("Error on read: ", err)
-// 		return nil, err, true
-// 	}
-// 	return responseData, nil, false
-// }
+	// if err == nil {
+	// 	for i := 0; i < len(records.Records); i++ {
+	// 		if records.Records[i].Value == RecordData && records.Records[i].Type == string(recordType) && records.Records[i].Name == domainutil.Subdomain(fqdnName) {
+	// 			return records.Records[i].ID, records.Records[i].Value, nil
+	// 		}
+	// 	}
+	// 	if RecordData == "" {
+	// 		for i := 0; i < len(records.Records); i++ {
+	// 			if records.Records[i].Type == string(recordType) && records.Records[i].Name == domainutil.Subdomain(fqdnName) {
+	// 				return records.Records[i].ID, records.Records[i].Value, nil
+	// 			}
+	// 		}
+	// 	}
+	// 	log.Errorln("Record not found")
+	// 	return 0, "", errors.New("record not found")
+	// } else {
+	// 	log.Errorln("Failed to unmarshal body with error: ", err)
+	// 	return 0, "", err
+	// }
+}
+
+// GetRecords Fetch records by FQDNName in struct GetRecordsList
+func getRecords(FQDNName string, c *NetangelsClient) (GetRecordsList, error) {
+	fqdnName := cutTrailingDotIfExist(FQDNName)
+	zone_id, err := GetZoneID(fqdnName, c)
+	if err != nil {
+		return GetRecordsList{}, err
+	}
+	req, err := http.NewRequest("GET", apiUrl+"/dns/zones/"+strconv.Itoa(zone_id)+"/records/", nil)
+	if err != nil {
+		return GetRecordsList{}, fmt.Errorf("ошибка создания запроса: %v", err)
+	}
+	// Установка заголовка авторизации
+	req.Header.Set("Authorization", "Bearer "+c.ApiToken)
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil || response.StatusCode != 200 {
+		log.Errorln("Failed request, response code: ", response.StatusCode)
+		return GetRecordsList{}, err
+	}
+	responseData, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Errorln("Error on read: ", err)
+		return GetRecordsList{}, err
+	}
+
+	// Декодирование JSON-ответа в структуру Zones
+	var recoed_list GetRecordsList
+	if err := json.Unmarshal(responseData, &recoed_list); err != nil {
+		return GetRecordsList{}, fmt.Errorf("ошибка декодирования JSON: %v", err)
+	}
+
+	return recoed_list, nil
+}
 
 // UpdateRecord Update record by ID, FQDNName, Value and RecordType
 // func (c *NetangelsClient) UpdateRecord(ID int, FQDNName string, Value string, recordType RecordType) (bool, error) {
