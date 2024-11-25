@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/bobesa/go-domain-util/domainutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -28,15 +27,21 @@ type DnsRecord struct {
 	TTL   int    `json:"ttl"`
 }
 
+type TXTDnsRecord struct {
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
+	TTL   int    `json:"ttl,omitempty"`
+}
+
 // CreateDnsResponse представляет структуру ответа при создании DNS-записи
 type CreateDnsResponse struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Value     string `json:"value"`
-	TTL       int    `json:"ttl"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	ID        int    `json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Value     string `json:"value,omitempty"`
+	TTL       int    `json:"ttl,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
 }
 
 type Zone_entities struct {
@@ -277,19 +282,15 @@ func (c *NetangelsClient) AddRecord(FQDNName string, Value string, recordType Re
 		log.Errorln("invalid record type: ", recordType)
 		return 0, errors.New("invalid record type")
 	}
-	// Trim one trailing dot
-	fqdnName := cutTrailingDotIfExist(FQDNName)
 
 	if ttl <= 0 { // Проверяем, если ttl не задан или равен 0
 		ttl = 300 // Значение по умолчанию
 	}
 
-	TXTRecordBody := CreateUpdateRecordBody{
-		Type:  recordType,
-		Name:  domainutil.Subdomain(fqdnName),
+	TXTRecordBody := TXTDnsRecord{
+		Name:  FQDNName,
 		Value: Value,
-		//	Priority: 1,
-		TTL: ttl,
+		TTL:   ttl,
 	}
 	postBody, err := json.Marshal(TXTRecordBody)
 	if err != nil {
