@@ -1,3 +1,6 @@
+//go:build v0.1
+// +build v0.1
+
 package netangelsgo
 
 import (
